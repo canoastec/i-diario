@@ -46,6 +46,7 @@ Rails.application.routes.draw do
           end
         end
         resources :teaching_plans, only: [:index]
+        post 'presence', to: 'faceschool_presences#create'
       end
     end
 
