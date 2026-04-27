@@ -132,7 +132,7 @@ class FaceschoolPresenceService
       student_id: student.id
     )
 
-    return if dfs.persisted?
+    return if dfs.persisted? && dfs.present? && dfs.active?
 
     dfs.present = true
     dfs.active = true
