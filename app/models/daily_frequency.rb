@@ -118,7 +118,7 @@ class DailyFrequency < ApplicationRecord
   end
 
   def build_or_find_by_student(student_id)
-    students.find_by(student_id: student_id) || students.build(student_id: student_id, present: 1,
+    students.find_by(student_id: student_id) || students.build(student_id: student_id, present: false,
                                                                type_of_teaching: default_type_of_teaching(student_id))
   end
 
