@@ -79,8 +79,8 @@ class DailyFrequenciesCreator
       if absence_justification_student_id
         daily_frequency_student.present = false
         daily_frequency_student.absence_justification_student_id = absence_justification_student_id
-      elsif
-        daily_frequency_student.present = true
+      else
+        daily_frequency_student.present = false
       end
 
       daily_frequency_student.dependence = student_has_dependence?(student_enrollment.id, first_daily_frequency.discipline_id)
