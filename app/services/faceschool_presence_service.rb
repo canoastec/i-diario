@@ -15,8 +15,6 @@ class FaceschoolPresenceService
     @check_in = @check_in_str.present? ? Time.zone.parse(@check_in_str) : nil
     @check_out = @check_out_str.present? ? Time.zone.parse(@check_out_str) : nil
 
-    return missing_check_in_out_error unless @check_in && @check_out
-
     student = Student.find_by(api_code: @student_api_code)
     return student_not_found_error unless student
 
@@ -161,10 +159,6 @@ class FaceschoolPresenceService
 
   def missing_params_error
     { success: false, errors: 'studentId e date são obrigatórios', status: :bad_request }
-  end
-
-  def missing_check_in_out_error
-    { success: false, errors: 'checkIn e checkOut são obrigatórios', status: :bad_request }
   end
 
   def student_not_found_error
