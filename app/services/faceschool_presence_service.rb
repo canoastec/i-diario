@@ -21,10 +21,12 @@ class FaceschoolPresenceService
     enrollments = active_enrollments(student)
     return no_enrollment_error if enrollments.empty?
 
-    ActiveRecord::Base.transaction do
-      enrollments.each do |enrollment|
-        classroom = enrollment.classrooms_grade.classroom
-        process_classroom(student, classroom)
+    Audited.audit_class.as_user('FaceSchool') do
+      ActiveRecord::Base.transaction do
+        enrollments.each do |enrollment|
+          classroom = enrollment.classrooms_grade.classroom
+          process_classroom(student, classroom)
+        end
       end
     end
 
@@ -112,7 +114,7 @@ class FaceschoolPresenceService
       unity_id: classroom.unity_id,
       school_calendar: school_calendar,
       owner_teacher_id: teacher_id,
-      origin: OriginTypes::API_V2
+      origin: OriginTypes::FACESCHOOL
     ).find_or_create_by(
       classroom_id: classroom.id,
       frequency_date: @date,

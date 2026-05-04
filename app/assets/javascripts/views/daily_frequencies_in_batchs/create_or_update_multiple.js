@@ -163,6 +163,60 @@ $(document).ready(function () {
     updateCheckboxes($(this), true);
   });
 
+  $('.mark-all-present').on('click', function (e) {
+    e.preventDefault();
+
+    let changed = false;
+
+    $('input.class-number-checkbox:not(:disabled)').each(function () {
+      let checkbox = $(this);
+
+      if (checkbox.closest('label').hasClass('justified')) {
+        return;
+      }
+
+      checkbox.closest('div').find('.hidden-justified').prop('disabled', true).val(null);
+      checkbox.data('status', 'absent');
+      checkbox.prop('indeterminate', false);
+      checkbox.prop('checked', true);
+      checkbox.closest('label').removeClass('justified');
+
+      updateCheckboxes(checkbox);
+      changed = true;
+    });
+
+    if (changed) {
+      $('[name$="[present]"]').first().trigger('change');
+    }
+  });
+
+  $('.mark-all-absent').on('click', function (e) {
+    e.preventDefault();
+
+    let changed = false;
+
+    $('input.class-number-checkbox:not(:disabled)').each(function () {
+      let checkbox = $(this);
+
+      if (checkbox.closest('label').hasClass('justified')) {
+        return;
+      }
+
+      checkbox.closest('div').find('.hidden-justified').prop('disabled', true).val(null);
+      checkbox.data('status', 'justified');
+      checkbox.prop('indeterminate', false);
+      checkbox.prop('checked', false);
+      checkbox.closest('label').removeClass('justified');
+
+      updateCheckboxes(checkbox);
+      changed = true;
+    });
+
+    if (changed) {
+      $('[name$="[present]"]').first().trigger('change');
+    }
+  });
+
   $("label.checkbox-frequency:not(.checkbox-batch) input[type=checkbox]").click(function() {
     let el = $(this);
 
