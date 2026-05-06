@@ -3,7 +3,14 @@ class AuditDecorator
     self.record = record
   end
 
-  delegate :action, :audited_changes, :auditable, :user, :created_at, to: :record
+  delegate :action, :audited_changes, :auditable, :user, :username, :created_at, to: :record
+
+  def display_user
+    return 'FaceSchool' if faceschool_origin?
+    return 'API V2' if api_v2_origin?
+
+    user || username
+  end
 
   def human_attribute_name(field)
     klass.human_attribute_name field
@@ -64,4 +71,16 @@ class AuditDecorator
   protected
 
   attr_accessor :record
+
+  def faceschool_origin?
+    return false unless auditable.respond_to?(:daily_frequency)
+
+    auditable.daily_frequency&.origin == OriginTypes::FACESCHOOL
+  end
+
+  def api_v2_origin?
+    return false unless auditable.respond_to?(:daily_frequency)
+
+    auditable.daily_frequency&.origin == OriginTypes::API_V2
+  end
 end
