@@ -19,6 +19,10 @@
     <% unique_id = "#{class_number.to_s.rjust(10, '0')}#{student.id.to_s.rjust(10, '0')}" %>
     <%= simple_fields_for "#{daily_frequency_student_path}[#{unique_id}]",
       daily_frequency_student = daily_frequency.build_or_find_by_student(student.id) do |f| %>
+      <% if !daily_frequency_student.persisted? && @general_daily_frequency_students.present? %>
+        <% general_student_frequency = @general_daily_frequency_students[student.id] %>
+        <% daily_frequency_student.present = general_student_frequency.present unless general_student_frequency.nil? %>
+      <% end %>
 
       <% if @general_configuration.type_of_teaching == true && index == 0 %>
           <td>
