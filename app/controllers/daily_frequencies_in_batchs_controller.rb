@@ -283,6 +283,8 @@ class DailyFrequenciesInBatchsController < ApplicationController
       period: @period
     )
 
+    @general_daily_frequency_students = general_daily_frequency_students_map(dates, student_ids)
+
     @additional_data = additional_data(dates, student_ids, dependences,
                                        inactives_on_date, exempteds_from_discipline, active_searchs)
   end
@@ -683,5 +685,39 @@ current_school_year)
     view_data
 
     render :create_or_update_multiple
+  end
+
+  def general_daily_frequency_students_map(dates, student_ids)
+    return {} unless @frequency_type == FrequencyTypes::BY_DISCIPLINE
+    return {} if dates.blank? || student_ids.blank?
+
+    order_sql = DailyFrequency.send(
+      :sanitize_sql_array,
+      ['frequency_date ASC, CASE WHEN period = ? THEN 0 ELSE 1 END, id ASC', @period]
+    )
+
+    general_daily_frequencies = DailyFrequency.where(
+      classroom_id: @classroom.id,
+      frequency_date: dates.first..dates.last,
+      discipline_id: nil,
+      class_number: nil
+    )
+      .includes(:students)
+      .order(Arel.sql(order_sql))
+
+    map = {}
+
+    general_daily_frequencies.each do |daily_frequency|
+      map[daily_frequency.frequency_date] ||= {}
+
+      daily_frequency.students.each do |student_frequency|
+        next unless student_ids.include?(student_frequency.student_id)
+        next if map[daily_frequency.frequency_date].key?(student_frequency.student_id)
+
+        map[daily_frequency.frequency_date][student_frequency.student_id] = student_frequency
+      end
+    end
+
+    map
   end
 end
