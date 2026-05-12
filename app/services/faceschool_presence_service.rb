@@ -47,33 +47,16 @@ class FaceschoolPresenceService
   end
 
   def process_classroom(student, classroom)
-    daily_frequencies = DailyFrequency.by_classroom_id(classroom.id)
-                                      .by_frequency_date(@date)
-
-    if daily_frequencies.any?
-      mark_all_frequencies(student, daily_frequencies)
-    else
-      create_and_mark_frequencies(student, classroom)
-    end
-  end
-
-  def mark_all_frequencies(student, daily_frequencies)
-    daily_frequencies.each do |df|
-      mark_student_present(df, student)
-    end
-  end
-
-  def create_and_mark_frequencies(student, classroom)
     school_calendar = CurrentSchoolCalendarFetcher.new(classroom.unity, classroom).fetch
     return unless school_calendar
 
-    allocations = lesson_allocations(classroom)
+    # Always ensure and mark the daily general frequency.
+    create_general_frequency(student, classroom, school_calendar)
 
-    if allocations.any?
-      create_by_discipline_frequencies(student, classroom, school_calendar, allocations)
-    else
-      create_general_frequency(student, classroom, school_calendar)
-    end
+    allocations = lesson_allocations(classroom)
+    return if allocations.empty?
+
+    create_by_discipline_frequencies(student, classroom, school_calendar, allocations)
   end
 
   def lesson_allocations(classroom)

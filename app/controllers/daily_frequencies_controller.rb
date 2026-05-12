@@ -109,6 +109,7 @@ class DailyFrequenciesController < ApplicationController
       classroom: @daily_frequency.classroom_id,
       period: @period
     )
+    @general_daily_frequency_students = general_daily_frequency_students_map(student_ids)
 
     enrollment_classrooms.each do |enrollment_classroom|
       student = enrollment_classroom[:student]
@@ -501,6 +502,39 @@ class DailyFrequenciesController < ApplicationController
 
   def show_inactive_enrollments
     @show_inactive_enrollments ||= GeneralConfiguration.first.show_inactive_enrollments
+  end
+
+  def general_daily_frequency_students_map(student_ids)
+    return {} if @frequency_type != FrequencyTypes::BY_DISCIPLINE
+    return {} if student_ids.blank?
+
+    order_sql = DailyFrequency.send(
+      :sanitize_sql_array,
+      ['CASE WHEN period = ? THEN 0 ELSE 1 END, id ASC', @period]
+    )
+
+    general_daily_frequencies = DailyFrequency.where(
+      classroom_id: @daily_frequency.classroom_id,
+      frequency_date: @daily_frequency.frequency_date,
+      discipline_id: nil,
+      class_number: nil
+    )
+      .includes(:students)
+      .order(Arel.sql(order_sql))
+
+    return {} if general_daily_frequencies.blank?
+
+    map = {}
+    general_daily_frequencies.each do |general_daily_frequency|
+      general_daily_frequency.students.each do |student_frequency|
+        next unless student_ids.include?(student_frequency.student_id)
+        next if map.key?(student_frequency.student_id)
+
+        map[student_frequency.student_id] = student_frequency
+      end
+    end
+
+    map
   end
 
   def set_options_by_classroom
