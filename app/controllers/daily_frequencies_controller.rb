@@ -72,6 +72,8 @@ class DailyFrequenciesController < ApplicationController
 
     @period = @period != Periods::FULL.to_i ? @period : nil
 
+    @frequency_type = current_frequency_type(@daily_frequency)
+
     @general_configuration = GeneralConfiguration.current
 
     authorize @daily_frequency
