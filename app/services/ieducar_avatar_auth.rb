@@ -22,7 +22,7 @@ class IeducarAvatarAuth
       obj.presigned_url(:get, expires_in: FOG_AUTHENTICATED_URL_EXPIRATION)
     end
   rescue StandardError => error
-    Honeybadger.notify(error)
+    Rails.logger.error("[#{error.class}] #{error.message}\n#{(error.backtrace || []).first(20).join("\n")}")
 
     @url
   end

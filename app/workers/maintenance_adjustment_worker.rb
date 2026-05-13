@@ -19,7 +19,7 @@ class MaintenanceAdjustmentWorker
 
         notify_on_message(maintenance_adjustment, user_id)
       rescue StandardError => error
-        Honeybadger.notify(error)
+        Rails.logger.error("[#{error.class}] #{error.message}\n#{(error.backtrace || []).first(20).join("\n")}")
 
         maintenance_adjustment.update(
           status: MaintenanceAdjustmentStatus::ERROR,

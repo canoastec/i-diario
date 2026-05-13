@@ -14,7 +14,6 @@ class ApplicationController < ActionController::Base
   include Pundit
   skip_around_action :set_locale_from_url
   around_action :handle_customer
-  before_action :set_honeybadger_context
   around_action :set_user_current
   around_action :set_thread_origin_type
 
@@ -369,27 +368,6 @@ class ApplicationController < ActionController::Base
     current_year_steps.last.end_date_for_posting
   end
 
-  def set_honeybadger_context
-    if (request.path || '').include?('api/v2')
-      classroom_id = params[:classroom_id]
-      teacher_id = params[:teacher_id]
-      discipline_id = params[:discipline_id]
-    else
-      classroom_id = current_user_classroom.try(:id)
-      teacher_id = current_teacher.try(:id)
-      discipline_id = current_user_discipline.try(:id)
-    end
-
-    Honeybadger.context(
-      entity: current_entity.try(:name),
-      current_classroom_id: classroom_id,
-      current_teacher_id: teacher_id,
-      current_discipline_id: discipline_id,
-      current_unity_id: current_unity.try(:id),
-      current_year: current_school_year
-    )
-  end
-
   def send_pdf(prefix, pdf_to_s)
     name = report_name(prefix)
     File.open("#{Rails.root}/public#{name}", 'wb') do |f|
@@ -463,17 +441,40 @@ class ApplicationController < ActionController::Base
     end
   end
 
-  def error_generic(expection)
-    set_honeybadger_error(expection)
+  def error_generic(exception)
+    log_application_error(exception)
 
     unless Rails.env.development?
       redirect_to :root
     end
   end
 
-  def set_honeybadger_error(expection)
+  def log_application_error(exception)
     flash[:success] = nil
     flash[:alert] = t('errors.general.error')
-    Honeybadger.notify(expection)
+
+    if (request.path || '').include?('api/v2')
+      classroom_id = params[:classroom_id]
+      teacher_id = params[:teacher_id]
+      discipline_id = params[:discipline_id]
+    else
+      classroom_id = current_user_classroom.try(:id)
+      teacher_id = current_teacher.try(:id)
+      discipline_id = current_user_discipline.try(:id)
+    end
+
+    context = {
+      entity: current_entity.try(:name),
+      current_classroom_id: classroom_id,
+      current_teacher_id: teacher_id,
+      current_discipline_id: discipline_id,
+      current_unity_id: current_unity.try(:id),
+      current_year: current_school_year
+    }
+
+    Rails.logger.error(
+      "[#{exception.class}] #{exception.message} | context: #{context.to_json}\n" \
+      "#{(exception.backtrace || []).first(20).join("\n")}"
+    )
   end
 end
