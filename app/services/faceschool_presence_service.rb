@@ -50,38 +50,7 @@ class FaceschoolPresenceService
     school_calendar = CurrentSchoolCalendarFetcher.new(classroom.unity, classroom).fetch
     return unless school_calendar
 
-    # Always ensure and mark the daily general frequency.
     create_general_frequency(student, classroom, school_calendar)
-
-    allocations = lesson_allocations(classroom)
-    return if allocations.empty?
-
-    create_by_discipline_frequencies(student, classroom, school_calendar, allocations)
-  end
-
-  def lesson_allocations(classroom)
-    weekday_name = @date.strftime('%A').downcase
-
-    LessonsBoardLessonWeekday
-      .includes(lessons_board_lesson: :lessons_board, teacher_discipline_classroom: [:teacher, :discipline])
-      .by_classroom(classroom.id)
-      .by_weekday(weekday_name)
-      .order('lessons_board_lessons.lesson_number')
-  end
-
-  def create_by_discipline_frequencies(student, classroom, school_calendar, allocations)
-    allocations.each do |allocation|
-      tdc = allocation.teacher_discipline_classroom
-      class_number = allocation.lessons_board_lesson.lesson_number.to_i
-
-      daily_frequency = find_or_create_daily_frequency(
-        classroom, school_calendar, tdc.discipline_id, class_number, tdc.teacher_id
-      )
-
-      next unless daily_frequency&.persisted?
-
-      mark_student_present(daily_frequency, student)
-    end
   end
 
   def create_general_frequency(student, classroom, school_calendar)
