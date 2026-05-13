@@ -6,7 +6,7 @@ if Rails.env.production? || Rails.env.staging?
     address: Rails.application.secrets.SMTP_ADDRESS,
     port: Rails.application.secrets.SMTP_PORT,
     domain: Rails.application.secrets.SMTP_DOMAIN,
-    authentication: 'plain',
+    authentication: Rails.application.secrets.SMTP_AUTH,
     user_name: Rails.application.secrets.SMTP_USER_NAME,
     password: Rails.application.secrets.SMTP_PASSWORD
   }
