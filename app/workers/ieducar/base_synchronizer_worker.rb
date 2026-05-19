@@ -27,6 +27,6 @@ class BaseSynchronizerWorker
       )
     end
 
-    Honeybadger.notify(exception)
+    Rails.logger.error("[#{exception.class}] #{exception.message}\n#{(exception.backtrace || []).first(20).join("\n")}")
   end
 end

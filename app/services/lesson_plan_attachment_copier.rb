@@ -33,7 +33,7 @@ class LessonPlanAttachmentCopier
       copy_to_local(prefix, original_id, new_id, filename)
     end
   rescue AttachmentCopyError => error
-    Honeybadger.notify(error)
+    Rails.logger.error("[#{error.class}] #{error.message}\n#{(error.backtrace || []).first(20).join("\n")}")
     error_attachment
   rescue Errno::EISDIR => e
     FileUtils.rm_rf("#{uploads}/#{new_id}")

@@ -19,15 +19,16 @@ class SynchronizerExecuterEnqueueWorker
       )
     end
 
-    Honeybadger.notify(
-      exception,
-      context: {
-        worker_class: 'SynchronizerExecuterEnqueueWorker',
-        params: params,
-        synchronization_id: params[:synchronization_id],
-        entity_id: params[:entity_id],
-        klass: params[:klass]
-      }
+    context = {
+      worker_class: 'SynchronizerExecuterEnqueueWorker',
+      params: params,
+      synchronization_id: params[:synchronization_id],
+      entity_id: params[:entity_id],
+      klass: params[:klass]
+    }
+    Rails.logger.error(
+      "[#{exception.class}] #{exception.message} | context: #{context.to_json}\n" \
+      "#{(exception.backtrace || []).first(20).join("\n")}"
     )
   end
 
