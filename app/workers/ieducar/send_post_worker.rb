@@ -24,7 +24,11 @@ module Ieducar
       args = msg['args'][0..-3]
 
       performer(*args) do |posting, _, _|
-        Honeybadger.notify(ex)
+        context = { posting_id: posting.try(:id), entity_id: args[0] }
+        Rails.logger.error(
+          "[#{ex.class}] #{ex.message} | context: #{context.to_json}\n" \
+          "#{(ex.backtrace || []).first(20).join("\n")}"
+        )
 
         if !posting.error_message?
           custom_error = "args: #{msg['args'].inspect}, error: #{ex.message}"
@@ -38,8 +42,6 @@ module Ieducar
     end
 
     def perform(entity_id, posting_id, params, info, queue, retry_count)
-      Honeybadger.context(posting_id: posting_id)
-
       performer(entity_id, posting_id, params, info) do |posting, params|
         params = params.with_indifferent_access
         information = info_message(info)

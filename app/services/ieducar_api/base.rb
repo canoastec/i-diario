@@ -15,11 +15,6 @@ module IeducarApi
       self.unity_id = options.delete(:unity_id)
       self.full_synchronization = full_synchronization
 
-      Honeybadger.context(
-        url: url,
-        unity_id: unity_id
-      )
-
       raise ApiError, 'É necessário informar a url de acesso: url' if url.blank?
       raise ApiError, 'É necessário informar a chave de acesso: access_key' if access_key.blank?
       raise ApiError, 'É necessário informar a chave secreta: secret_key' if secret_key.blank?
@@ -88,13 +83,6 @@ module IeducarApi
         Sidekiq.logger.info "[DEBUG_IEDUCAR_API] #{method.upcase} #{endpoint}?#{request_params.to_query} payload: #{payload}"
       end
 
-      Honeybadger.context(
-        endpoint: endpoint,
-        request_params: request_params,
-        request_url: "#{endpoint}?#{request_params.to_query}",
-        payload: params
-      )
-
       begin
         result = if method == RequestMethods::GET
                    yield(endpoint, request_params)
@@ -118,7 +106,17 @@ module IeducarApi
         end
         
         if RETRY_NETWORK_ERRORS.any? { |network_error| error.message.include?(network_error) }
-          Honeybadger.notify(error)
+          context = {
+            url: url,
+            unity_id: unity_id,
+            endpoint: endpoint,
+            request_url: "#{endpoint}?#{request_params.to_query}",
+            payload: params
+          }
+          Rails.logger.error(
+            "[#{error.class}] #{error.message} | context: #{context.to_json}\n" \
+            "#{(error.backtrace || []).first(20).join("\n")}"
+          )
           raise NetworkException, error.message
         end
 
@@ -128,8 +126,18 @@ module IeducarApi
           Rails.logger.error "[DEBUG_IEDUCAR_API] Error occurred: #{error.class} - #{error.message}"
           Rails.logger.error "[DEBUG_IEDUCAR_API] Backtrace: #{error.backtrace.first(5).join("\n")}"
         end
-        
-        Honeybadger.notify(error)
+
+        context = {
+          url: url,
+          unity_id: unity_id,
+          endpoint: endpoint,
+          request_url: "#{endpoint}?#{request_params.to_query}",
+          payload: params
+        }
+        Rails.logger.error(
+          "[#{error.class}] #{error.message} | context: #{context.to_json}\n" \
+          "#{(error.backtrace || []).first(20).join("\n")}"
+        )
 
         raise GenericError, error.message
       end

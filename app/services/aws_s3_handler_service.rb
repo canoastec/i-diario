@@ -16,8 +16,11 @@ class AwsS3HandlerService
     rescue Aws::S3::Errors::NoSuchKey
       false
     rescue Exception => error
-      Honeybadger.context(object_name: object.class, object_id: object.id, source: uri_escape(source), target: target)
-      Honeybadger.notify(error)
+      context = { object_name: object.class, object_id: object.id, source: uri_escape(source), target: target }
+      Rails.logger.error(
+        "[#{error.class}] #{error.message} | context: #{context.to_json}\n" \
+        "#{(error.backtrace || []).first(20).join("\n")}"
+      )
       raise
     end
   end

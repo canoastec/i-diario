@@ -85,7 +85,7 @@ class AdminSynchronization
   def entity_syncs
     @entity_syncs ||= Marshal.load($REDIS_DB.get('AdminSynchronizations')) || {}
   rescue StandardError => error
-    Honeybadger.notify(error)
+    Rails.logger.error("[#{error.class}] #{error.message}\n#{(error.backtrace || []).first(20).join("\n")}")
 
     {}
   end

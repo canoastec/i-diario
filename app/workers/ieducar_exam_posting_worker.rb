@@ -22,7 +22,7 @@ class IeducarExamPostingWorker
       posting.finish!
     end
 
-    Honeybadger.notify(exception)
+    Rails.logger.error("[#{exception.class}] #{exception.message}\n#{(exception.backtrace || []).first(20).join("\n")}")
   end
 
   def perform(entity_id, posting_id, posting_last_id, force_posting)
