@@ -120,8 +120,8 @@ class DailyNotesController < ApplicationController
         delete_note(params[:id], student_id)
 
         avaliation_exemption.save!
-      rescue Exception => expection
-        Honeybadger.notify(expection)
+      rescue Exception => exception
+        Rails.logger.error("[#{exception.class}] #{exception.message}\n#{(exception.backtrace || []).first(20).join("\n")}")
 
         @students_ids.delete(student_id)
       end

@@ -19,7 +19,7 @@ class IeducarSynchronizerWorker
       )
     end
 
-    Honeybadger.notify(exception)
+    Rails.logger.error("[#{exception.class}] #{exception.message}\n#{(exception.backtrace || []).first(20).join("\n")}")
   end
 
   def perform(entity_id = nil, synchronization_id = nil, full_synchronization = false, current_years = true, period = nil)
