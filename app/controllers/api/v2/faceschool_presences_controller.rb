@@ -6,9 +6,9 @@ module Api
         result = service.call
 
         if result[:success]
-          render json: result, status: :created
+          render json: result.except(:status), status: :created
         else
-          render json: { errors: result[:errors] }, status: (result[:status] || :unprocessable_entity)
+          render json: error_payload(result), status: (result[:status] || :unprocessable_entity)
         end
       end
 
@@ -16,6 +16,15 @@ module Api
 
       def presence_params
         params.permit(:studentId, :date, :device, :checkIn, :checkOut)
+      end
+
+      def error_payload(result)
+        payload = { errors: result[:errors] }
+        payload[:reasons] = result[:reasons] if result[:reasons].present?
+        payload[:student_id] = result[:student_id] if result.key?(:student_id)
+        payload[:date] = result[:date] if result.key?(:date)
+        payload[:marked_count] = result[:marked_count] if result.key?(:marked_count)
+        payload
       end
     end
   end
