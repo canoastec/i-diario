@@ -6,6 +6,8 @@ class FaceschoolPresenceService
     @check_in_str = params[:checkIn]
     @check_out_str = params[:checkOut]
     @marked = []
+    @already_present = []
+    @skip_reasons = []
   end
 
   def call
@@ -30,8 +32,11 @@ class FaceschoolPresenceService
       end
     end
 
-    success_response
+    return success_response if @marked.any? || @already_present.any?
+
+    not_marked_error
   rescue ActiveRecord::RecordInvalid => e
+    log_failure(e.message)
     { success: false, errors: e.message, status: :unprocessable_entity }
   rescue ArgumentError => e
     { success: false, errors: "Formato de data/hora inválido: #{e.message}", status: :bad_request }
@@ -48,34 +53,51 @@ class FaceschoolPresenceService
 
   def process_classroom(student, classroom)
     school_calendar = CurrentSchoolCalendarFetcher.new(classroom.unity, classroom).fetch
-    return unless school_calendar
+
+    unless school_calendar
+      @skip_reasons << "Calendário escolar não encontrado para a turma #{classroom.id}"
+      return
+    end
 
     create_general_frequency(student, classroom, school_calendar)
   end
 
   def create_general_frequency(student, classroom, school_calendar)
-    daily_frequency = find_or_create_daily_frequency(classroom, school_calendar, nil, nil, nil)
-
-    return unless daily_frequency&.persisted?
-
+    daily_frequency = find_or_create_daily_frequency(classroom, school_calendar)
     mark_student_present(daily_frequency, student)
   end
 
-  def find_or_create_daily_frequency(classroom, school_calendar, discipline_id, class_number, teacher_id)
-    DailyFrequency.create_with(
-      unity_id: classroom.unity_id,
-      school_calendar: school_calendar,
-      owner_teacher_id: teacher_id,
-      origin: OriginTypes::FACESCHOOL
-    ).find_or_create_by(
+  def find_or_create_daily_frequency(classroom, school_calendar)
+    find_attrs = {
       classroom_id: classroom.id,
       frequency_date: @date,
       period: classroom.period,
-      discipline_id: discipline_id,
-      class_number: class_number
+      discipline_id: nil,
+      class_number: nil
+    }
+
+    existing = DailyFrequency.find_by(find_attrs)
+    return existing if existing
+
+    daily_frequency = DailyFrequency.new(
+      find_attrs.merge(
+        unity_id: classroom.unity_id,
+        school_calendar: school_calendar,
+        owner_teacher_id: nil,
+        origin: OriginTypes::FACESCHOOL
+      )
     )
+
+    ActiveRecord::Base.transaction(requires_new: true) do
+      daily_frequency.save
+    end
+
+    return daily_frequency if daily_frequency.persisted?
+    raise ActiveRecord::RecordInvalid, daily_frequency if daily_frequency.errors.any?
+
+    DailyFrequency.find_by!(find_attrs)
   rescue ActiveRecord::RecordNotUnique
-    retry
+    DailyFrequency.find_by!(find_attrs)
   end
 
   def mark_student_present(daily_frequency, student)
@@ -84,19 +106,47 @@ class FaceschoolPresenceService
       student_id: student.id
     )
 
-    return if dfs.persisted? && dfs.present? && dfs.active?
+    if dfs.persisted? && dfs.present? && dfs.active?
+      track_already_present(daily_frequency)
+      return
+    end
 
     dfs.present = true
     dfs.active = true
-    dfs.save!
 
-    @marked << {
+    begin
+      ActiveRecord::Base.transaction(requires_new: true) do
+        dfs.save!
+      end
+    rescue ActiveRecord::RecordNotUnique
+      dfs = DailyFrequencyStudent.find_by!(
+        daily_frequency_id: daily_frequency.id,
+        student_id: student.id
+      )
+
+      if dfs.present? && dfs.active?
+        track_already_present(daily_frequency)
+        return
+      end
+
+      dfs.present = true
+      dfs.active = true
+      dfs.save!
+    end
+
+    @marked << presence_payload(daily_frequency)
+  end
+
+  def track_already_present(daily_frequency)
+    @already_present << presence_payload(daily_frequency)
+  end
+
+  def presence_payload(daily_frequency)
+    {
       classroom_id: daily_frequency.classroom_id,
       class_number: daily_frequency.class_number,
       discipline_id: daily_frequency.discipline_id
     }
-  rescue ActiveRecord::RecordNotUnique
-    retry
   end
 
   def success_response
@@ -107,8 +157,36 @@ class FaceschoolPresenceService
       check_in: @check_in_str,
       check_out: @check_out_str,
       marked_count: @marked.size,
-      marked_classes: @marked
+      marked_classes: @marked,
+      already_present_count: @already_present.size,
+      already_present_classes: @already_present
     }
+  end
+
+  def not_marked_error
+    errors = if @skip_reasons.any?
+               @skip_reasons.join('; ')
+             else
+               'Nenhuma presença foi registrada para o aluno na data'
+             end
+
+    log_failure(errors)
+
+    {
+      success: false,
+      errors: errors,
+      reasons: @skip_reasons,
+      student_id: @student_api_code,
+      date: @date_str,
+      marked_count: 0,
+      status: :unprocessable_entity
+    }
+  end
+
+  def log_failure(message)
+    Rails.logger.warn(
+      "[FaceSchool] Presença não registrada student_id=#{@student_api_code} date=#{@date_str}: #{message}"
+    )
   end
 
   def missing_params_error
