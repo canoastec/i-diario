@@ -24,11 +24,9 @@ class FaceschoolPresenceService
     return no_enrollment_error if enrollments.empty?
 
     Audited.audit_class.as_user('FaceSchool') do
-      ActiveRecord::Base.transaction do
-        enrollments.each do |enrollment|
-          classroom = enrollment.classrooms_grade.classroom
-          process_classroom(student, classroom)
-        end
+      enrollments.each do |enrollment|
+        classroom = enrollment.classrooms_grade.classroom
+        process_classroom(student, classroom)
       end
     end
 
@@ -60,44 +58,44 @@ class FaceschoolPresenceService
     end
 
     create_general_frequency(student, classroom, school_calendar)
+  rescue ActiveRecord::RecordInvalid => e
+    # Não deixa uma turma derrubar as demais (regressão do #9830 com transaction + raise).
+    @skip_reasons << "Turma #{classroom.id} (#{classroom.description}): #{e.message}"
   end
 
   def create_general_frequency(student, classroom, school_calendar)
     daily_frequency = find_or_create_daily_frequency(classroom, school_calendar)
+
+    unless daily_frequency&.persisted?
+      reason = if daily_frequency&.errors&.any?
+                 daily_frequency.errors.full_messages.to_sentence
+               else
+                 'não foi possível criar/encontrar a frequência'
+               end
+      @skip_reasons << "Turma #{classroom.id} (#{classroom.description}): #{reason}"
+      return
+    end
+
     mark_student_present(daily_frequency, student)
   end
 
+  # Mesmo padrão de antes do #9830 (e do DailyFrequenciesCreator):
+  # find_or_create_by NÃO levanta erro de validação — só deixa persisted? false.
   def find_or_create_daily_frequency(classroom, school_calendar)
-    find_attrs = {
+    DailyFrequency.create_with(
+      unity_id: classroom.unity_id,
+      school_calendar: school_calendar,
+      owner_teacher_id: nil,
+      origin: OriginTypes::FACESCHOOL
+    ).find_or_create_by(
       classroom_id: classroom.id,
       frequency_date: @date,
       period: classroom.period,
       discipline_id: nil,
       class_number: nil
-    }
-
-    existing = DailyFrequency.find_by(find_attrs)
-    return existing if existing
-
-    daily_frequency = DailyFrequency.new(
-      find_attrs.merge(
-        unity_id: classroom.unity_id,
-        school_calendar: school_calendar,
-        owner_teacher_id: nil,
-        origin: OriginTypes::FACESCHOOL
-      )
     )
-
-    ActiveRecord::Base.transaction(requires_new: true) do
-      daily_frequency.save
-    end
-
-    return daily_frequency if daily_frequency.persisted?
-    raise ActiveRecord::RecordInvalid, daily_frequency if daily_frequency.errors.any?
-
-    DailyFrequency.find_by!(find_attrs)
   rescue ActiveRecord::RecordNotUnique
-    DailyFrequency.find_by!(find_attrs)
+    retry
   end
 
   def mark_student_present(daily_frequency, student)
@@ -113,28 +111,11 @@ class FaceschoolPresenceService
 
     dfs.present = true
     dfs.active = true
-
-    begin
-      ActiveRecord::Base.transaction(requires_new: true) do
-        dfs.save!
-      end
-    rescue ActiveRecord::RecordNotUnique
-      dfs = DailyFrequencyStudent.find_by!(
-        daily_frequency_id: daily_frequency.id,
-        student_id: student.id
-      )
-
-      if dfs.present? && dfs.active?
-        track_already_present(daily_frequency)
-        return
-      end
-
-      dfs.present = true
-      dfs.active = true
-      dfs.save!
-    end
+    dfs.save!
 
     @marked << presence_payload(daily_frequency)
+  rescue ActiveRecord::RecordNotUnique
+    retry
   end
 
   def track_already_present(daily_frequency)
